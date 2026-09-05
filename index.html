@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ошибка на карте — все выпуски</title>
+<meta name="description" content="Карта выпусков канала «Ошибка на карте». Одна история на выпуск — один корабль, одна экспедиция, одна ночь.">
+
+<style>
+  :root {
+    --bg1: #1a1f26;
+    --bg2: #0e1116;
+    --panel: #191d23;
+    --panel2: #212730;
+    --line: #2f3641;
+    --text: #e3dbcb;
+    --dim: #8d867a;
+    --mute: #6d7480;
+    --accent: #d09a52;
+    --land: #353942;
+    --coast: #525a66;
+    --serif: Georgia, 'Times New Roman', serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; background: var(--bg2); color: var(--text);
+    font: 16px/1.6 var(--serif);
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px 70px; }
+
+  /* ---------- шапка ---------- */
+  header { padding: 40px 0 22px; }
+  h1 {
+    margin: 0; font-size: 34px; line-height: 1.15; letter-spacing: .01em;
+  }
+  .lede { margin: 10px 0 0; color: var(--dim); font-size: 17px; max-width: 640px; }
+
+  /* ---------- карта ---------- */
+  .mapbox {
+    position: relative; margin-top: 26px;
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+    background: radial-gradient(ellipse 75% 80% at 42% 40%, var(--bg1) 45%, var(--bg2) 100%);
+  }
+  svg.map { display: block; width: 100%; height: auto; touch-action: manipulation; }
+
+  .land { fill: var(--land); stroke: var(--coast); stroke-width: .8; }
+  .sea {
+    font-size: 9px; fill: var(--mute); letter-spacing: .18em;
+    font-style: italic; pointer-events: none;
+  }
+
+  .pin { cursor: pointer; }
+  .pin .halo { fill: var(--accent); opacity: 0; }
+  .pin .dot  { fill: var(--accent); stroke: var(--bg2); stroke-width: 1.2; }
+  .pin .ring { fill: none; stroke: var(--accent); stroke-width: 1; opacity: .45; }
+  .pin .num  { font-size: 10px; fill: var(--bg2); text-anchor: middle;
+               font-family: -apple-system, "Segoe UI", sans-serif; font-weight: 700;
+               pointer-events: none; }
+  .pin:hover .halo { opacity: .14; }
+  .pin.on .halo { opacity: .2; }
+  .pin.on .ring { opacity: 1; stroke-width: 2; }
+
+  .maptools {
+    position: absolute; left: 12px; top: 12px; display: flex; gap: 6px;
+  }
+  .maptools button {
+    font: 13px/1 -apple-system, "Segoe UI", sans-serif;
+    color: var(--dim); background: rgba(14,17,22,.82);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 7px 11px; cursor: pointer;
+  }
+  .maptools button:hover { color: var(--text); border-color: #4a5462; }
+  .maptools button.on { color: var(--accent); border-color: var(--accent); }
+
+  .tip {
+    position: absolute; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -140%);
+    background: rgba(14,17,22,.94); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 10px; white-space: nowrap;
+    font-size: 13px; transition: opacity .12s;
+  }
+  .tip.on { opacity: 1; }
+  .tip b { color: var(--accent); font-weight: normal; }
+
+  /* ---------- карточка выпуска ---------- */
+  .card {
+    margin-top: 22px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); padding: 22px 24px;
+  }
+  .card .meta {
+    font-size: 13px; letter-spacing: .16em; color: var(--accent);
+    font-family: -apple-system, "Segoe UI", sans-serif;
+  }
+  .card h2 { margin: 10px 0 0; font-size: 25px; line-height: 1.25; font-weight: normal; }
+  .card p  { margin: 12px 0 0; color: var(--dim); max-width: 720px; }
+  .card .where { margin-top: 10px; font-size: 14px; color: var(--mute); font-style: italic; }
+
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .links a {
+    font: 14px/1 -apple-system, "Segoe UI", sans-serif;
+    text-decoration: none; color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px; padding: 9px 14px;
+    background: var(--panel2);
+  }
+  .links a:hover { border-color: var(--accent); color: var(--accent); }
+  .links .soon {
+    font: 14px/1 -apple-system, "Segoe UI", sans-serif; color: var(--mute);
+    border: 1px dashed var(--line); border-radius: 6px; padding: 9px 14px;
+  }
+
+  /* ---------- лента выпусков ---------- */
+  h3 {
+    margin: 44px 0 14px; font-size: 13px; letter-spacing: .2em;
+    color: var(--dim); font-family: -apple-system, "Segoe UI", sans-serif;
+    font-weight: 600; text-transform: uppercase;
+  }
+
+  .strip { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); }
+  .item {
+    text-align: left; cursor: pointer; color: inherit;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 14px 16px; font: inherit;
+  }
+  .item:hover { border-color: #4a5462; }
+  .item.on { border-color: var(--accent); }
+  .item .y { color: var(--accent); font-size: 14px; }
+  .item .t { display: block; margin-top: 4px; font-size: 17px; }
+  .item .w { display: block; margin-top: 4px; font-size: 13px; color: var(--mute); }
+
+  /* ---------- подвал ---------- */
+  footer {
+    margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 15px;
+  }
+  footer a { color: var(--accent); }
+  footer p { margin: 6px 0; }
+
+  @media (max-width: 780px) {
+    .wrap { padding: 0 14px 50px; }
+    header { padding: 26px 0 16px; }
+    h1 { font-size: 26px; }
+    .lede { font-size: 16px; }
+    .card { padding: 18px 16px; }
+    .card h2 { font-size: 21px; }
+    .strip { grid-template-columns: 1fr; }
+    .tip { display: none; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <h1>Ошибка на карте</h1>
+    <p class="lede">
+      Одна история на выпуск — один корабль, одна экспедиция, одна ночь.
+      Не о том, как люди погибли, а о том, почему каждое их решение
+      в тот момент выглядело единственно верным.
+    </p>
+  </header>
+
+  <div class="mapbox">
+    <svg class="map" id="map" viewBox="0 0 1440 656" role="img"
+         aria-label="Карта мест, о которых рассказывают выпуски"></svg>
+    <div class="maptools">
+      <button id="bHome" hidden>Вся карта</button>
+    </div>
+    <div class="tip" id="tip"></div>
+  </div>
+
+  <div class="card" id="card"></div>
+
+  <h3>Все выпуски по годам</h3>
+  <div class="strip" id="strip"></div>
+
+  <footer>
+    <p>Новые выпуски по вторникам и пятницам.</p>
+    <p>Телеграм: <a id="lnTg" href="#">[ссылка]</a> · Поддержать канал: <a id="lnBoosty" href="#">[ссылка]</a></p>
+    <p style="color:var(--mute);font-size:13px">
+      Карта схематичная. Точки поставлены по координатам событий.
+    </p>
+  </footer>
+
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   Карта выпусков канала «Ошибка на карте».
+   Один файл, работает офлайн, ничего не грузит со стороны.
+
+   ЧТОБЫ ДОБАВИТЬ ВЫПУСК — допиши объект в EPISODES ниже.
+   Точка на карте встанет сама: она считается из координат,
+   а не расставляется руками.
+   ============================================================ */
+
+const EPISODES = [
+  {
+    id: 'franklin',
+    year: 1845, when: '1845–1848',
+    title: 'Экспедиция Франклина',
+    hook: 'Сто пять человек ушли за помощью. Не дошёл никто',
+    text: 'Два корабля с лучшим снаряжением своего времени вмёрзли в лёд ' +
+          'северо-западнее острова Кинг-Уильям. Экспедиция пошла не той стороной ' +
+          'острова — потому что на карте Адмиралтейства другой стороны просто не было.',
+    where: 'Канадская Арктика, остров Кинг-Уильям',
+    lat: 69.9, lon: -98.6,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
+  },
+  {
+    id: 'californian',
+    year: 1912, when: 'ночь на 15 апреля 1912',
+    title: '«Калифорниэн» и восемь ракет',
+    hook: 'Корабль в девятнадцати милях от «Титаника». Почему он не пришёл',
+    text: 'Вахтенный видел белые ракеты и разбудил капитана. Капитан спросил, ' +
+          'какого они цвета. Услышал «белые» — и лёг спать. Белая ракета ' +
+          'в 1912 году не означала бедствия.',
+    where: 'Северная Атлантика',
+    lat: 41.7, lon: -50.0,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
+  },
+  {
+    id: 'endurance',
+    year: 1915, when: '1914–1916',
+    title: '«Эндьюранс»',
+    hook: 'Девятнадцать месяцев без вестей. Не погиб никто',
+    text: 'Корабль затёрло льдом, не дойдя до берега, и раздавило. ' +
+          'Двадцать восемь человек прожили девятнадцать месяцев на льду ' +
+          'и на голом острове. Шеклтон выбросил в снег золотые часы, ' +
+          'но разрешил взять банджо.',
+    where: 'Море Уэдделла, Антарктида',
+    lat: -68.73, lon: -52.33,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
+  },
+  {
+    id: 'halifax',
+    year: 1917, when: '6 декабря 1917',
+    title: 'Взрыв в Галифаксе',
+    hook: 'Два судна расходились по правилам. Поэтому и столкнулись',
+    text: 'Между столкновением и взрывом прошло девятнадцать минут. ' +
+          'Горящее судно в гавани — это зрелище, и люди вышли посмотреть. ' +
+          'Ни один из них не знал, что в трюмах.',
+    where: 'Галифакс, Новая Шотландия',
+    lat: 44.67, lon: -63.6,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
+  },
+  {
+    id: 'italia',
+    year: 1928, when: 'май–июль 1928',
+    title: 'Дирижабль «Италия»',
+    hook: 'Девять погибли, спасая восьмерых. Про них не помнят',
+    text: 'Дирижабль ударился о лёд, гондола оторвалась, оболочку с шестью ' +
+          'людьми унесло навсегда. Спасательная операция шести стран стоила ' +
+          'больше жизней, чем сама катастрофа.',
+    where: 'Лёд севернее Шпицбергена',
+    lat: 80.5, lon: 27.0,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
+  },
+  {
+    id: 'tenerife',
+    year: 1977, when: '27 марта 1977',
+    title: 'Тенерифе, Лос-Родеос',
+    hook: 'Два самолёта на одной полосе. Погубило их радио',
+    text: 'В тумане на одной полосе оказались два «Боинга-747». ' +
+          'Две радиостанции нажали тангенту одновременно, и решающая фраза ' +
+          'диспетчера превратилась в писк. После этого переписали язык, ' +
+          'на котором говорят пилоты.',
+    where: 'Канарские острова, аэропорт Лос-Родеос',
+    lat: 28.48, lon: -16.34,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
+  }
+];
+
+// Ссылки канала. Подставь свои — они попадут в подвал.
+const CHANNEL = { telegram: '', boosty: '' };
+
+const PLATFORMS = [
+  ['rutube',  'Смотреть на RuTube'],
+  ['dzen',    'Дзен'],
+  ['vk',      'VK Видео'],
+  ['youtube', 'YouTube']
+];
+
+/* ---------- проекция ---------------------------------------------------
+   Равнопромежуточная: долгота и широта ложатся линейно. Полярные области
+   растянуты по горизонтали — это свойство проекции, а не ошибка рисунка.  */
+
+const MAP = { lonA: -180, lonB: 180, latA: 86, latB: -78, S: 4 };
+const MW = (MAP.lonB - MAP.lonA) * MAP.S;   // 1440
+const MH = (MAP.latA - MAP.latB) * MAP.S;   // 656
+
+const X = lon => (lon - MAP.lonA) * MAP.S;
+const Y = lat => (MAP.latA - lat) * MAP.S;
+
+/* ---------- суша -------------------------------------------------------
+   Схематичные контуры в градусах: "долгота,широта ..." через пробел.
+   Подробность намеренно низкая — это фон для точек, а не атлас.          */
+
+const LAND = {
+  'Северная Америка':
+    '-168,66 -166,68 -156,71 -145,70 -135,69 -128,70 -118,70 -110,68 -100,69 -95,68 -88,68 ' +
+    '-85,66 -94,64 -93,60 -92,57 -88,55 -85,52 -82,52 -80,55 -78,58 -77,62 -73,62 -70,60 ' +
+    '-65,60 -64,58 -67,55 -61,56 -56,52 -55,47 -60,46 -65,44 -67,45 -70,43 -74,40 -76,37 ' +
+    '-76,35 -81,32 -80,25 -83,29 -85,30 -89,29 -94,29 -97,26 -97,21 -91,19 -87,21 -88,18 ' +
+    '-92,15 -95,16 -104,19 -106,23 -110,24 -114,31 -117,33 -121,35 -124,41 -124,48 -131,53 ' +
+    '-136,58 -145,60 -152,59 -158,56 -162,58 -166,62',
+  'Гренландия':
+    '-33,83.5 -22,82 -18,80 -21,77 -20,74 -22,70 -26,68 -31,66 -38,65 -43,60 -44,60.5 ' +
+    '-50,62 -52,65 -53,67 -55,69 -57,71 -60,74 -65,76 -70,77 -66,80 -58,82 -45,83',
+  'Баффинова Земля':
+    '-62,66 -68,70 -73,73 -80,73 -85,70 -82,67 -78,63 -72,63 -66,62',
+  'Виктория':
+    '-115,69 -110,68 -105,69 -100,70 -104,73 -112,73 -118,72',
+  'Элсмир':
+    '-85,78 -75,80 -65,82 -70,83 -85,82 -90,80',
+  'Кинг-Уильям':
+    '-99,68.4 -96,68.4 -95,69.4 -98,69.8',
+  'Ньюфаундленд':
+    '-59,47.5 -55,47 -53,48 -55,51 -58,50',
+  'Исландия':
+    '-24,65.5 -22,66.5 -16,66.5 -14,65.5 -15,64.5 -18,63.4 -22,63.8',
+  'Шпицберген':
+    '10,79 12,80 16,80.5 21,80.2 25,80.3 28,79.5 24,78.5 21,78 17,77.5 16,76.6 13,77.5 11,78',
+  'Британия':
+    '-5,58.6 -3,58.5 -2,57.5 -3,56 -1.5,54.5 0,53 1.7,52.5 1,51.4 -1,50.7 -4,50.3 -5.7,50 ' +
+    '-4.5,51.6 -3,53.4 -4.7,54 -5,55.5 -5.8,57',
+  'Ирландия':
+    '-10,54.3 -8,55.3 -6,55.2 -6,54 -6,53.3 -6.2,52.2 -8,51.5 -10,51.6 -9.8,53.3',
+  'Евразия':
+    '-9,43 -9,37 -6,36 0,39 4,43 9,44 13,45 13,41 16,41 19,40 24,40 28,41 32,36 36,36 ' +
+    '35,32 34,31 37,25 40,22 43,13 48,13 54,17 57,23 62,25 67,24 72,20 73,16 76,9 80,13 ' +
+    '80,16 85,20 89,22 92,21 95,16 98,9 100,4 104,2 103,8 105,11 109,11 108,17 110,21 ' +
+    '113,22 118,24 121,29 122,32 120,37 122,40 126,40 129,43 133,43 135,47 141,46 142,51 ' +
+    '137,55 141,59 152,59 156,51 163,58 170,60 180,65 180,70 170,70 160,71 150,73 140,73 ' +
+    '130,74 113,74 105,77 95,76 85,74 75,72 70,73 65,72 60,70 52,70 45,68 40,67 36,68 ' +
+    '33,69 30,70 26,70 22,70 18,69 14,67 12,64 7,63 5,61 8,58 10,57 8,54 5,53 3,52 0,50 ' +
+    '-2,48 -4,48 -2,46 -1,44',
+  'Африка':
+    '-6,36 3,37 10,37 11,34 19,31 25,32 32,31 34,28 37,22 39,15 43,12 48,11 51,12 48,5 ' +
+    '42,-1 40,-10 35,-18 33,-26 28,-33 20,-35 18,-33 15,-26 12,-17 13,-8 9,-1 9,4 3,6 ' +
+    '-4,5 -8,4 -13,9 -17,15 -17,21 -14,26 -10,30',
+  'Мадагаскар':
+    '43,-12 49,-13 50,-16 48,-22 45,-25 44,-21 43,-16',
+  'Южная Америка':
+    '-77,8 -72,12 -64,11 -60,8 -52,5 -50,0 -44,-2 -38,-5 -35,-8 -39,-14 -40,-21 -48,-25 ' +
+    '-53,-34 -57,-38 -62,-40 -65,-45 -68,-50 -70,-54 -75,-52 -74,-45 -73,-38 -71,-30 ' +
+    '-70,-20 -76,-14 -81,-6 -80,-2 -78,2',
+  'Куба':
+    '-84,22 -78,22 -74,20 -79,20',
+  'Австралия':
+    '113,-22 114,-26 115,-32 118,-35 124,-33 129,-32 134,-33 138,-35 141,-38 147,-38 ' +
+    '150,-37 153,-32 153,-28 148,-20 143,-14 142,-11 137,-12 136,-15 131,-12 129,-15 ' +
+    '125,-14 122,-17 114,-22',
+  'Япония':
+    '130,31 132,34 136,35 140,36 142,40 141,45 139,42 136,37 133,34',
+  'Новая Зеландия':
+    '172,-34 176,-38 178,-38 177,-41 174,-41 173,-43 170,-46 167,-46 171,-42',
+  'Антарктида':
+    '-180,-78 -160,-78 -150,-75 -140,-72 -125,-73 -100,-73 -85,-73 -75,-72 -70,-70 ' +
+    '-65,-67 -60,-63 -57,-64 -60,-70 -55,-72 -45,-76 -35,-77 -28,-76 -20,-72 -10,-70 ' +
+    '0,-69 10,-70 20,-70 30,-68 40,-67 50,-66 60,-67 70,-68 80,-66 90,-66 100,-65 ' +
+    '110,-66 120,-66 130,-66 140,-66 150,-70 160,-77 170,-78 180,-78 180,-84 -180,-84'
+};
+
+const SEAS = [
+  ['СЕВЕРНЫЙ ЛЕДОВИТЫЙ ОКЕАН', 90, 84],
+  ['АТЛАНТИЧЕСКИЙ ОКЕАН', -30, 5],
+  ['ТИХИЙ ОКЕАН', -150, 5],
+  ['ИНДИЙСКИЙ ОКЕАН', 78, -25],
+  ['МОРЕ УЭДДЕЛЛА', -38, -64]
+];
+
+/* ---------- сборка карты ----------------------------------------------- */
+
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('map');
+const tip = document.getElementById('tip');
+
+function node(name, attrs) {
+  const el = document.createElementNS(NS, name);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+svg.setAttribute('viewBox', `0 0 ${MW} ${MH}`);
+
+for (const name in LAND) {
+  const pts = LAND[name].trim().split(/\s+/)
+    .map(p => { const [lo, la] = p.split(','); return X(+lo).toFixed(1) + ',' + Y(+la).toFixed(1); })
+    .join(' ');
+  const el = node('polygon', { class: 'land', points: pts });
+  el.appendChild(node('title', {})).textContent = name;
+  svg.appendChild(el);
+}
+
+for (const [name, lon, lat] of SEAS) {
+  const t = node('text', { class: 'sea', x: X(lon), y: Y(lat), 'text-anchor': 'middle' });
+  t.textContent = name;
+  svg.appendChild(t);
+}
+
+const sorted = EPISODES.slice().sort((a, b) => a.year - b.year);
+const pins = {};
+
+sorted.forEach((e, i) => {
+  const x = X(e.lon), y = Y(e.lat);
+  const g = node('g', { class: 'pin', tabindex: '0', role: 'button' });
+  g.setAttribute('aria-label', `${e.when}. ${e.title}`);
+  g.appendChild(node('circle', { class: 'halo', cx: x, cy: y, r: 30 }));
+  g.appendChild(node('circle', { class: 'ring', cx: x, cy: y, r: 14 }));
+  g.appendChild(node('circle', { class: 'dot',  cx: x, cy: y, r: 9 }));
+  const n = node('text', { class: 'num', x: x, y: y + 3.6 });
+  n.textContent = String(i + 1);
+  g.appendChild(n);
+
+  g.addEventListener('click', () => select(e.id));
+  g.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(e.id); }
+  });
+  g.addEventListener('mouseenter', () => showTip(e, x, y));
+  g.addEventListener('mouseleave', hideTip);
+
+  svg.appendChild(g);
+  pins[e.id] = g;
+});
+
+/* ---------- подсказка при наведении ------------------------------------ */
+
+function showTip(e, x, y) {
+  const box = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  const k = box.width / vb.width;
+  tip.innerHTML = `<b>${e.when}</b> · ${e.title}`;
+  tip.style.left = ((x - vb.x) * k) + 'px';
+  tip.style.top  = ((y - vb.y) * k) + 'px';
+  tip.classList.add('on');
+}
+function hideTip() { tip.classList.remove('on'); }
+
+/* ---------- плавный переезд по карте ------------------------------------ */
+
+const WORLD = [0, 0, MW, MH];
+// Атлантика с полюсами: все шесть точек попадают в это окно.
+// На узком экране мир во всю ширину получился бы полоской в 150 пикселей
+// высотой, поэтому там домашний вид — вот этот, вертикальный.
+const ATLANTIC = [X(-128), Y(86), X(36) - X(-128), Y(-76) - Y(86)];
+
+const home = () => (window.innerWidth < 780 ? ATLANTIC : WORLD);
+
+// Пропорции картинки задаём по домашнему виду и больше не трогаем:
+// иначе при перелёте к точке страница дёргалась бы по высоте.
+function fitAspect() {
+  const b = home();
+  svg.style.aspectRatio = b[2] + ' / ' + b[3];
+}
+
+let anim = null;
+function flyTo(box, ms) {
+  const vb = svg.viewBox.baseVal;
+  const from = [vb.x, vb.y, vb.width, vb.height];
+  if (anim) cancelAnimationFrame(anim);
+  const t0 = performance.now();
+  const dur = ms == null ? 550 : ms;
+  (function step(t) {
+    const p = Math.min(1, (t - t0) / dur);
+    const e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;   // плавный вход и выход
+    const cur = from.map((v, i) => v + (box[i] - v) * e);
+    svg.setAttribute('viewBox', cur.join(' '));
+    if (p < 1) anim = requestAnimationFrame(step);
+  })(t0);
+}
+
+function frameFor(e) {
+  // Окно вокруг точки в тех же пропорциях, что и домашний вид,
+  // и не мельче трети его ширины: схематичная суша при сильном
+  // увеличении распадается на углы и читаться перестаёт.
+  const b = home();
+  const w = b[2] / 2.6, h = w * (b[3] / b[2]);
+  let x = X(e.lon) - w / 2, y = Y(e.lat) - h / 2;
+  x = Math.max(b[0], Math.min(x, b[0] + b[2] - w));
+  y = Math.max(b[1], Math.min(y, b[1] + b[3] - h));
+  return [x, y, w, h];
+}
+
+const bHome = document.getElementById('bHome');
+bHome.onclick = () => { bHome.hidden = true; flyTo(home()); };
+
+/* ---------- карточка и лента -------------------------------------------- */
+
+const card = document.getElementById('card');
+const strip = document.getElementById('strip');
+let current = null;
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+strip.innerHTML = sorted.map((e, i) => `
+  <button class="item" data-id="${e.id}">
+    <span class="y">${i + 1}. ${esc(String(e.year))}</span>
+    <span class="t">${esc(e.title)}</span>
+    <span class="w">${esc(e.where)}</span>
+  </button>`).join('');
+
+strip.addEventListener('click', ev => {
+  const b = ev.target.closest('.item');
+  if (b) select(b.dataset.id);
+});
+
+function select(id, fly) {
+  const e = sorted.find(x => x.id === id);
+  if (!e) return;
+  current = id;
+
+  for (const k in pins) pins[k].classList.toggle('on', k === id);
+  strip.querySelectorAll('.item').forEach(b => b.classList.toggle('on', b.dataset.id === id));
+
+  const has = PLATFORMS.filter(([k]) => e.links[k]);
+  const links = has.length
+    ? has.map(([k, label]) => `<a href="${esc(e.links[k])}" target="_blank" rel="noopener">${label}</a>`).join('')
+    : '<span class="soon">Ссылка появится, когда выпуск выйдет</span>';
+
+  card.innerHTML = `
+    <div class="meta">${esc(e.when).toUpperCase()}</div>
+    <h2>${esc(e.hook)}</h2>
+    <p>${esc(e.text)}</p>
+    <div class="where">${esc(e.where)}</div>
+    <div class="links">${links}</div>`;
+
+  if (fly !== false) {
+    bHome.hidden = false;
+    flyTo(frameFor(e));
+  }
+  hideTip();
+
+  if (history.replaceState) history.replaceState(null, '', '#' + id);
+}
+
+/* ---------- подвал и старт ---------------------------------------------- */
+
+for (const [id, url] of [['lnTg', CHANNEL.telegram], ['lnBoosty', CHANNEL.boosty]]) {
+  const a = document.getElementById(id);
+  if (url) { a.href = url; a.textContent = url.replace(/^https?:\/\//, ''); }
+  else { a.removeAttribute('href'); a.style.color = 'var(--mute)'; }
+}
+
+let wide = window.innerWidth >= 780;
+window.addEventListener('resize', () => {
+  hideTip();
+  const w = window.innerWidth >= 780;
+  if (w !== wide) {                 // сменился экран — домашний вид другой
+    wide = w;
+    fitAspect();
+    if (bHome.hidden) svg.setAttribute('viewBox', home().join(' '));
+  }
+});
+
+fitAspect();
+
+// Первый экран — вся карта целиком: сразу видно, что шесть историй
+// складываются в одно кольцо вокруг Атлантики, а не лежат случайно.
+const start = location.hash.replace('#', '');
+svg.setAttribute('viewBox', home().join(' '));
+if (sorted.some(e => e.id === start)) {
+  select(start);
+} else {
+  select(sorted[0].id, false);
+}
+</script>
+</html>
