@@ -2,1029 +2,578 @@
 <html lang="ru">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Хронолента — конструктор временных линий</title>
+<title>Ошибка на карте — все выпуски</title>
+<meta name="description" content="Карта выпусков канала «Ошибка на карте». Одна история на выпуск — один корабль, одна экспедиция, одна ночь.">
 
 <style>
   :root {
-    --bg: #14171c;
-    --panel: #1b1f26;
-    --panel2: #222831;
-    --line: #2e3641;
-    --text: #e4e8ee;
-    --dim: #98a2b0;
+    --bg1: #1a1f26;
+    --bg2: #0e1116;
+    --panel: #191d23;
+    --panel2: #212730;
+    --line: #2f3641;
+    --text: #e3dbcb;
+    --dim: #8d867a;
+    --mute: #6d7480;
     --accent: #d09a52;
-    --danger: #b5563f;
-    --radius: 8px;
+    --land: #353942;
+    --coast: #525a66;
+    --serif: Georgia, 'Times New Roman', serif;
   }
 
   * { box-sizing: border-box; }
 
   html, body {
-    margin: 0; height: 100%;
-    background: var(--bg); color: var(--text);
-    font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0; background: var(--bg2); color: var(--text);
+    font: 16px/1.6 var(--serif);
   }
 
-  /* Три блока: редактор слева во всю высоту, панель настроек и кадр справа.
-     Сеткой, а не вложенностью, — чтобы на телефоне те же три блока можно
-     было переставить в колонку и приклеить кадр к верху экрана. */
-  #app {
-    display: grid; height: 100vh; overflow: hidden;
-    grid-template-columns: 400px minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px 70px; }
+
+  /* ---------- шапка ---------- */
+  header { padding: 40px 0 22px; }
+  h1 {
+    margin: 0; font-size: 34px; line-height: 1.15; letter-spacing: .01em;
   }
-  #side { grid-column: 1; grid-row: 1 / 3; }
-  #bar  { grid-column: 2; grid-row: 1; }
-  #view { grid-column: 2; grid-row: 2; }
+  .lede { margin: 10px 0 0; color: var(--dim); font-size: 17px; max-width: 640px; }
 
-  /* ---------- левая панель ---------- */
-  #side {
-    display: flex; flex-direction: column; min-height: 0;
-    background: var(--panel); border-right: 1px solid var(--line);
+  /* ---------- карта ---------- */
+  .mapbox {
+    position: relative; margin-top: 26px;
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+    background: radial-gradient(ellipse 75% 80% at 42% 40%, var(--bg1) 45%, var(--bg2) 100%);
+  }
+  svg.map { display: block; width: 100%; height: auto; touch-action: manipulation; }
+
+  .land { fill: var(--land); stroke: var(--coast); stroke-width: .8; }
+  .sea {
+    font-size: 9px; fill: var(--mute); letter-spacing: .18em;
+    font-style: italic; pointer-events: none;
   }
 
-  #brand {
-    padding: 14px 16px; border-bottom: 1px solid var(--line);
-    display: flex; align-items: baseline; gap: 10px;
+  .pin { cursor: pointer; }
+  .pin .halo { fill: var(--accent); opacity: 0; }
+  .pin .dot  { fill: var(--accent); stroke: var(--bg2); stroke-width: 1.2; }
+  .pin .ring { fill: none; stroke: var(--accent); stroke-width: 1; opacity: .45; }
+  .pin .num  { font-size: 10px; fill: var(--bg2); text-anchor: middle;
+               font-family: -apple-system, "Segoe UI", sans-serif; font-weight: 700;
+               pointer-events: none; }
+  .pin:hover .halo { opacity: .14; }
+  .pin.on .halo { opacity: .2; }
+  .pin.on .ring { opacity: 1; stroke-width: 2; }
+
+  .maptools {
+    position: absolute; left: 12px; top: 12px; display: flex; gap: 6px;
   }
-  #brand b { font-size: 16px; letter-spacing: .02em; }
-  #brand span { color: var(--dim); font-size: 12px; }
-
-  .scroll { overflow-y: auto; flex: 1; padding: 14px 16px 40px; }
-
-  .field { margin-bottom: 12px; }
-  .field label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
-
-  input, select, textarea, button {
-    font: inherit; color: var(--text);
-    background: var(--panel2); border: 1px solid var(--line);
-    border-radius: 6px; padding: 7px 9px; width: 100%;
+  .maptools button {
+    font: 13px/1 -apple-system, "Segoe UI", sans-serif;
+    color: var(--dim); background: rgba(14,17,22,.82);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 7px 11px; cursor: pointer;
   }
-  textarea { resize: vertical; min-height: 52px; }
-  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  .maptools button:hover { color: var(--text); border-color: #4a5462; }
+  .maptools button.on { color: var(--accent); border-color: var(--accent); }
 
-  button { cursor: pointer; width: auto; }
-  button:hover { border-color: #46515f; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #1a1408; font-weight: 600; }
-  button.primary:hover { filter: brightness(1.08); }
-  button.ghost { background: transparent; }
-  button.small { padding: 4px 8px; font-size: 12px; }
+  .tip {
+    position: absolute; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -140%);
+    background: rgba(14,17,22,.94); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 10px; white-space: nowrap;
+    font-size: 13px; transition: opacity .12s;
+  }
+  .tip.on { opacity: 1; }
+  .tip b { color: var(--accent); font-weight: normal; }
 
-  .row { display: flex; gap: 8px; }
-  .row > * { flex: 1; }
-  .row.tight { gap: 6px; }
+  /* ---------- карточка выпуска ---------- */
+  .card {
+    margin-top: 22px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); padding: 22px 24px;
+  }
+  .card .meta {
+    font-size: 13px; letter-spacing: .16em; color: var(--accent);
+    font-family: -apple-system, "Segoe UI", sans-serif;
+  }
+  .card h2 { margin: 10px 0 0; font-size: 25px; line-height: 1.25; font-weight: normal; }
+  .card p  { margin: 12px 0 0; color: var(--dim); max-width: 720px; }
+  .card .where { margin-top: 10px; font-size: 14px; color: var(--mute); font-style: italic; }
 
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .links a {
+    font: 14px/1 -apple-system, "Segoe UI", sans-serif;
+    text-decoration: none; color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px; padding: 9px 14px;
+    background: var(--panel2);
+  }
+  .links a:hover { border-color: var(--accent); color: var(--accent); }
+  .links .soon {
+    font: 14px/1 -apple-system, "Segoe UI", sans-serif; color: var(--mute);
+    border: 1px dashed var(--line); border-radius: 6px; padding: 9px 14px;
+  }
+
+  /* ---------- лента выпусков ---------- */
   h3 {
-    margin: 22px 0 10px; font-size: 12px; text-transform: uppercase;
-    letter-spacing: .12em; color: var(--dim); font-weight: 600;
-  }
-  h3:first-child { margin-top: 0; }
-
-  /* ---------- список событий ---------- */
-  #events { display: flex; flex-direction: column; gap: 8px; }
-
-  .ev {
-    background: var(--panel2); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 10px; cursor: pointer;
-  }
-  .ev.sel { border-color: var(--accent); }
-  .ev-top { display: flex; align-items: center; gap: 8px; }
-  .ev-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-  .ev-when { font-size: 12px; color: var(--dim); flex: none; }
-  .ev-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ev-body { margin-top: 8px; display: none; }
-  .ev.sel .ev-body { display: block; }
-  .ev-actions { display: flex; gap: 6px; margin-top: 8px; }
-
-  .hint { font-size: 12px; color: var(--dim); margin-top: 6px; line-height: 1.45; }
-  .warn { color: var(--accent); }
-
-  .made {
-    margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line);
-    font-size: 12px; line-height: 1.55; color: var(--dim);
-  }
-  .made a { color: var(--accent); }
-
-  /* ---------- правая часть ---------- */
-  #bar {
-    padding: 10px 16px; border-bottom: 1px solid var(--line);
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    background: var(--panel);
-  }
-  #bar .sp { flex: 1; }
-  #bar label { font-size: 12px; color: var(--dim); flex: none; }
-  #bar select, #bar input { width: auto; }
-  #bar .group { display: flex; align-items: center; gap: 6px; }
-  #bar .acts { display: flex; align-items: center; gap: 8px; }
-
-  /* Кадр и ползунок шагов живут вместе: на телефоне этот блок прилипает
-     к верху экрана, чтобы правка события была видна сразу. */
-  #view { display: flex; flex-direction: column; min-height: 0; }
-
-  #stage {
-    flex: 1; display: flex; align-items: center; justify-content: center;
-    padding: 24px; overflow: auto; background: #0e1114;
-  }
-  #cv { max-width: 100%; max-height: 100%; box-shadow: 0 8px 40px rgba(0,0,0,.55); }
-
-  #steps {
-    padding: 10px 16px; border-top: 1px solid var(--line);
-    display: flex; align-items: center; gap: 12px; background: var(--panel);
-  }
-  #steps input[type=range] { flex: 1; padding: 0; background: none; border: none; }
-  #stepLabel { font-size: 12px; color: var(--dim); min-width: 130px; }
-
-  #toast {
-    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
-    background: var(--panel2); border: 1px solid var(--accent);
-    padding: 10px 16px; border-radius: var(--radius);
-    opacity: 0; pointer-events: none; transition: opacity .25s;
-    max-width: 70vw;
-  }
-  #toast.on { opacity: 1; }
-
-  .empty { color: var(--dim); font-size: 13px; padding: 10px 0; }
-
-  /* ---------- узкий экран ----------------------------------------------
-     На телефоне две колонки не помещаются, поэтому кадр и редактор встают
-     друг под друга. Кадр прилипает к верху: правишь событие внизу списка —
-     и сразу видишь, что получилось, без прокрутки туда-обратно.          */
-
-  @media (max-width: 900px) {
-    html, body { height: auto; }
-
-    /* Кадр наверху и прилипший, под ним — кнопки, настройки и редактор.
-       Прилипает он ко всей странице, поэтому виден и в конце списка событий. */
-    #app {
-      display: flex; flex-direction: column;
-      height: auto; overflow: visible;
-    }
-    #view {
-      order: 1;
-      position: sticky; top: 0; z-index: 3;
-      background: var(--bg); border-bottom: 1px solid var(--line);
-    }
-    #bar { order: 2; border-bottom: none; }
-    #side { order: 3; border-right: none; border-top: 1px solid var(--line); }
-    .scroll { overflow: visible; flex: none; padding-bottom: 60px; }
-
-    #stage { flex: none; height: 30vh; min-height: 170px; padding: 10px; }
-
-    #bar { padding: 10px 12px; gap: 8px 10px; }
-    #bar .sp { display: none; }
-    #bar select { flex: 1; min-width: 0; }
-    /* min-width: 0 — иначе длинный пункт списка распирает пару и она
-       перестаёт помещаться вдвоём в строку */
-    #bar .group { flex: 1 1 45%; min-width: 0; }
-    #bar .acts { order: -1; width: 100%; gap: 6px; }
-    #bar .acts button { flex: 1; padding: 8px 4px; }
-
-    #steps { padding: 8px 12px; gap: 8px; }
-    #stepLabel { min-width: 0; white-space: nowrap; }
-    #playAll { white-space: nowrap; }
-
-    #brand { padding: 12px; }
-    #toast { max-width: 88vw; bottom: 16px; }
-
-    /* Браузер подтягивает поле в фокусе к верху экрана — а там прилипший
-       кадр. Оставляем ему место, иначе поле окажется под картинкой. */
-    .field input, .field textarea, .ev { scroll-margin-top: calc(30vh + 70px); }
-
-    /* 16px — иначе Safari на айфоне зумит страницу при фокусе в поле */
-    input, select, textarea { font-size: 16px; padding: 9px 10px; }
-    button { font-size: 14px; }
+    margin: 44px 0 14px; font-size: 13px; letter-spacing: .2em;
+    color: var(--dim); font-family: -apple-system, "Segoe UI", sans-serif;
+    font-weight: 600; text-transform: uppercase;
   }
 
-  @media (max-width: 560px) {
-    #stage { height: 26vh; min-height: 150px; }
-    .field input, .field textarea, .ev { scroll-margin-top: calc(26vh + 70px); }
-    #brand span { display: none; }
-    .row { flex-direction: column; gap: 8px; }
-    .ev-actions button { padding: 6px 4px; }
+  .strip { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); }
+  .item {
+    text-align: left; cursor: pointer; color: inherit;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 14px 16px; font: inherit;
+  }
+  .item:hover { border-color: #4a5462; }
+  .item.on { border-color: var(--accent); }
+  .item .y { color: var(--accent); font-size: 14px; }
+  .item .t { display: block; margin-top: 4px; font-size: 17px; }
+  .item .w { display: block; margin-top: 4px; font-size: 13px; color: var(--mute); }
+
+  /* ---------- подвал ---------- */
+  footer {
+    margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 15px;
+  }
+  footer a { color: var(--accent); }
+  footer p { margin: 6px 0; }
+
+  @media (max-width: 780px) {
+    .wrap { padding: 0 14px 50px; }
+    header { padding: 26px 0 16px; }
+    h1 { font-size: 26px; }
+    .lede { font-size: 16px; }
+    .card { padding: 18px 16px; }
+    .card h2 { font-size: 21px; }
+    .strip { grid-template-columns: 1fr; }
+    .tip { display: none; }
   }
 </style>
 
-<div id="app">
-  <aside id="side">
-    <div id="brand"><b>Хронолента</b> <span>конструктор временных линий</span></div>
+<div class="wrap">
 
-    <div class="scroll">
-      <h3>Проект</h3>
-      <div class="field">
-        <label>Заголовок</label>
-        <input id="pTitle" placeholder="Например: Экспедиция Франклина">
-      </div>
-      <div class="field">
-        <label>Подзаголовок</label>
-        <input id="pSub" placeholder="необязательно">
-      </div>
-      <div class="field">
-        <label>Подпись внизу</label>
-        <input id="pFoot" placeholder="имя канала, школы, автора">
-      </div>
+  <header>
+    <h1>Ошибка на карте</h1>
+    <p class="lede">
+      Одна история на выпуск — один корабль, одна экспедиция, одна ночь.
+      Не о том, как люди погибли, а о том, почему каждое их решение
+      в тот момент выглядело единственно верным.
+    </p>
+  </header>
 
-      <h3>События</h3>
-      <div id="events"></div>
-      <div class="row" style="margin-top:10px">
-        <button id="addEv" class="primary">Добавить событие</button>
-        <button id="sortEv" class="ghost">Упорядочить</button>
-      </div>
-      <div class="hint" id="scaleHint"></div>
-
-      <div class="made">
-        Хронолента выросла из работы над каналом
-        <a href="https://mihailgimmelman90-ctrl.github.io/oshibka-na-karte/"
-           target="_blank" rel="noopener">«Ошибка на карте»</a> —
-        одна история на выпуск: один корабль, одна экспедиция, одна ночь.
-        Там же карта всех выпусков.
-      </div>
+  <div class="mapbox">
+    <svg class="map" id="map" viewBox="0 0 1440 656" role="img"
+         aria-label="Карта мест, о которых рассказывают выпуски"></svg>
+    <div class="maptools">
+      <button id="bHome" hidden>Вся карта</button>
     </div>
-  </aside>
-
-  <div id="bar">
-      <span class="group">
-        <label for="orient">Вид</label>
-        <select id="orient">
-          <option value="h">Горизонтальная</option>
-          <option value="v">Вертикальная</option>
-        </select>
-      </span>
-
-      <span class="group">
-        <label for="size">Размер</label>
-        <select id="size">
-          <option value="2560x1440">2560×1440 (16:9)</option>
-          <option value="1920x1080">1920×1080 (16:9)</option>
-          <option value="1080x1920">1080×1920 (9:16)</option>
-          <option value="1080x1080">1080×1080 (1:1)</option>
-        </select>
-      </span>
-
-      <span class="group">
-        <label for="theme">Тема</label>
-        <select id="theme"></select>
-      </span>
-
-      <span class="group">
-        <label for="scale">Шкала</label>
-        <select id="scale">
-          <option value="equal">Равные промежутки</option>
-          <option value="time">По реальному времени</option>
-          <option value="timebreak">По времени, с разрывами</option>
-        </select>
-      </span>
-
-      <span class="sp"></span>
-
-      <span class="acts">
-        <button id="save" class="ghost">Сохранить</button>
-        <button id="load" class="ghost">Открыть</button>
-        <button id="exportOne" class="ghost">Кадр</button>
-        <button id="exportAll" class="primary">Экспорт кадров</button>
-      </span>
-      <input id="file" type="file" accept="application/json" hidden>
+    <div class="tip" id="tip"></div>
   </div>
 
-  <div id="view">
-    <div id="stage"><canvas id="cv"></canvas></div>
+  <div class="card" id="card"></div>
 
-    <div id="steps">
-      <span id="stepLabel"></span>
-      <input id="step" type="range" min="0" max="0" value="0">
-      <button id="playAll" class="small ghost">Показать всё</button>
-    </div>
-  </div>
+  <h3>Все выпуски по годам</h3>
+  <div class="strip" id="strip"></div>
+
+  <footer>
+    <p>Новые выпуски по вторникам и пятницам.</p>
+    <p>Телеграм: <a id="lnTg" href="#">[ссылка]</a> · Поддержать канал: <a id="lnBoosty" href="#">[ссылка]</a></p>
+    <p>
+      <a href="https://mihailgimmelman90-ctrl.github.io/Chronolenta/"
+         target="_blank" rel="noopener">Хронолента</a> —
+      конструктор временных линий, который вырос из работы над этими выпусками.
+      Открывается в браузере, ставить ничего не надо.
+    </p>
+    <p style="color:var(--mute);font-size:13px">
+      Карта схематичная. Точки поставлены по координатам событий.
+    </p>
+  </footer>
+
 </div>
-
-<div id="toast"></div>
 
 <script>
 'use strict';
 
 /* ============================================================
-   Хронолента — конструктор временных линий.
-   Один файл, работает офлайн, ничего не отправляет наружу.
-   Рисование и превью, и экспорт идут через одну функцию draw(),
-   поэтому картинка на экране и в файле совпадают всегда.
+   Карта выпусков канала «Ошибка на карте».
+   Один файл, работает офлайн, ничего не грузит со стороны.
+
+   ЧТОБЫ ДОБАВИТЬ ВЫПУСК — допиши объект в EPISODES ниже.
+   Точка на карте встанет сама: она считается из координат,
+   а не расставляется руками.
    ============================================================ */
 
-const THEMES = {
-  dark: {
-    name: 'Тёмная',
-    bg1: '#171c22', bg2: '#0e1216',
-    line: '#3d4855', text: '#e6ecf2', dim: '#8b949d',
-    accent: '#d09a52', font: 'Georgia, "Times New Roman", serif',
-    palette: ['#d09a52', '#6f93a8', '#a8806f', '#7f9a76', '#9b8bb4', '#b5806a']
+const EPISODES = [
+  {
+    id: 'franklin',
+    year: 1845, when: '1845–1848',
+    title: 'Экспедиция Франклина',
+    hook: 'Сто пять человек ушли за помощью. Не дошёл никто',
+    text: 'Два корабля с лучшим снаряжением своего времени вмёрзли в лёд ' +
+          'северо-западнее острова Кинг-Уильям. Экспедиция пошла не той стороной ' +
+          'острова — потому что на карте Адмиралтейства другой стороны просто не было.',
+    where: 'Канадская Арктика, остров Кинг-Уильям',
+    lat: 69.9, lon: -98.6,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
   },
-  light: {
-    name: 'Светлая',
-    bg1: '#f6f3ec', bg2: '#e8e3d8',
-    line: '#b9b1a3', text: '#221f1a', dim: '#6d6659',
-    accent: '#a4652a', font: 'Georgia, "Times New Roman", serif',
-    palette: ['#a4652a', '#3f6076', '#7a4a3c', '#4d6b45', '#5f5378', '#8a5340']
+  {
+    id: 'californian',
+    year: 1912, when: 'ночь на 15 апреля 1912',
+    title: '«Калифорниэн» и восемь ракет',
+    hook: 'Корабль в девятнадцати милях от «Титаника». Почему он не пришёл',
+    text: 'Вахтенный видел белые ракеты и разбудил капитана. Капитан спросил, ' +
+          'какого они цвета. Услышал «белые» — и лёг спать. Белая ракета ' +
+          'в 1912 году не означала бедствия.',
+    where: 'Северная Атлантика',
+    lat: 41.7, lon: -50.0,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
   },
-  sepia: {
-    name: 'Сепия',
-    bg1: '#221c14', bg2: '#110e09',
-    line: '#4b4234', text: '#ece2cc', dim: '#948970',
-    accent: '#d09a52', font: 'Georgia, "Times New Roman", serif',
-    palette: ['#d09a52', '#9c8158', '#b08a63', '#7f7a5e', '#a8926d', '#8d7350']
+  {
+    id: 'endurance',
+    year: 1915, when: '1914–1916',
+    title: '«Эндьюранс»',
+    hook: 'Девятнадцать месяцев без вестей. Не погиб никто',
+    text: 'Корабль затёрло льдом, не дойдя до берега, и раздавило. ' +
+          'Двадцать восемь человек прожили девятнадцать месяцев на льду ' +
+          'и на голом острове. Шеклтон выбросил в снег золотые часы, ' +
+          'но разрешил взять банджо.',
+    where: 'Море Уэдделла, Антарктида',
+    lat: -68.73, lon: -52.33,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
   },
-  school: {
-    name: 'Школьная',
-    bg1: '#ffffff', bg2: '#f2f5f8',
-    line: '#9fb0c0', text: '#12202c', dim: '#5c6f80',
-    accent: '#1f6feb', font: '"Segoe UI", Roboto, Arial, sans-serif',
-    palette: ['#1f6feb', '#d1642a', '#2e8b57', '#8b4fa8', '#c0392b', '#0e7490']
+  {
+    id: 'halifax',
+    year: 1917, when: '6 декабря 1917',
+    title: 'Взрыв в Галифаксе',
+    hook: 'Два судна расходились по правилам. Поэтому и столкнулись',
+    text: 'Между столкновением и взрывом прошло девятнадцать минут. ' +
+          'Горящее судно в гавани — это зрелище, и люди вышли посмотреть. ' +
+          'Ни один из них не знал, что в трюмах.',
+    where: 'Галифакс, Новая Шотландия',
+    lat: 44.67, lon: -63.6,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
+  },
+  {
+    id: 'italia',
+    year: 1928, when: 'май–июль 1928',
+    title: 'Дирижабль «Италия»',
+    hook: 'Девять погибли, спасая восьмерых. Про них не помнят',
+    text: 'Дирижабль ударился о лёд, гондола оторвалась, оболочку с шестью ' +
+          'людьми унесло навсегда. Спасательная операция шести стран стоила ' +
+          'больше жизней, чем сама катастрофа.',
+    where: 'Лёд севернее Шпицбергена',
+    lat: 80.5, lon: 27.0,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
+  },
+  {
+    id: 'tenerife',
+    year: 1977, when: '27 марта 1977',
+    title: 'Тенерифе, Лос-Родеос',
+    hook: 'Два самолёта на одной полосе. Погубило их радио',
+    text: 'В тумане на одной полосе оказались два «Боинга-747». ' +
+          'Две радиостанции нажали тангенту одновременно, и решающая фраза ' +
+          'диспетчера превратилась в писк. После этого переписали язык, ' +
+          'на котором говорят пилоты.',
+    where: 'Канарские острова, аэропорт Лос-Родеос',
+    lat: 28.48, lon: -16.34,
+    links: { rutube: '', dzen: '', vk: '', youtube: '' }
   }
+];
+
+// Ссылки канала. Подставь свои — они попадут в подвал.
+const CHANNEL = { telegram: '', boosty: '' };
+
+const PLATFORMS = [
+  ['rutube',  'Смотреть на RuTube'],
+  ['dzen',    'Дзен'],
+  ['vk',      'VK Видео'],
+  ['youtube', 'YouTube']
+];
+
+/* ---------- проекция ---------------------------------------------------
+   Равнопромежуточная: долгота и широта ложатся линейно. Полярные области
+   растянуты по горизонтали — это свойство проекции, а не ошибка рисунка.  */
+
+const MAP = { lonA: -180, lonB: 180, latA: 86, latB: -78, S: 4 };
+const MW = (MAP.lonB - MAP.lonA) * MAP.S;   // 1440
+const MH = (MAP.latA - MAP.latB) * MAP.S;   // 656
+
+const X = lon => (lon - MAP.lonA) * MAP.S;
+const Y = lat => (MAP.latA - lat) * MAP.S;
+
+/* ---------- суша -------------------------------------------------------
+   Схематичные контуры в градусах: "долгота,широта ..." через пробел.
+   Подробность намеренно низкая — это фон для точек, а не атлас.          */
+
+const LAND = {
+  'Северная Америка':
+    '-168,66 -166,68 -156,71 -145,70 -135,69 -128,70 -118,70 -110,68 -100,69 -95,68 -88,68 ' +
+    '-85,66 -94,64 -93,60 -92,57 -88,55 -85,52 -82,52 -80,55 -78,58 -77,62 -73,62 -70,60 ' +
+    '-65,60 -64,58 -67,55 -61,56 -56,52 -55,47 -60,46 -65,44 -67,45 -70,43 -74,40 -76,37 ' +
+    '-76,35 -81,32 -80,25 -83,29 -85,30 -89,29 -94,29 -97,26 -97,21 -91,19 -87,21 -88,18 ' +
+    '-92,15 -95,16 -104,19 -106,23 -110,24 -114,31 -117,33 -121,35 -124,41 -124,48 -131,53 ' +
+    '-136,58 -145,60 -152,59 -158,56 -162,58 -166,62',
+  'Гренландия':
+    '-33,83.5 -22,82 -18,80 -21,77 -20,74 -22,70 -26,68 -31,66 -38,65 -43,60 -44,60.5 ' +
+    '-50,62 -52,65 -53,67 -55,69 -57,71 -60,74 -65,76 -70,77 -66,80 -58,82 -45,83',
+  'Баффинова Земля':
+    '-62,66 -68,70 -73,73 -80,73 -85,70 -82,67 -78,63 -72,63 -66,62',
+  'Виктория':
+    '-115,69 -110,68 -105,69 -100,70 -104,73 -112,73 -118,72',
+  'Элсмир':
+    '-85,78 -75,80 -65,82 -70,83 -85,82 -90,80',
+  'Кинг-Уильям':
+    '-99,68.4 -96,68.4 -95,69.4 -98,69.8',
+  'Ньюфаундленд':
+    '-59,47.5 -55,47 -53,48 -55,51 -58,50',
+  'Исландия':
+    '-24,65.5 -22,66.5 -16,66.5 -14,65.5 -15,64.5 -18,63.4 -22,63.8',
+  'Шпицберген':
+    '10,79 12,80 16,80.5 21,80.2 25,80.3 28,79.5 24,78.5 21,78 17,77.5 16,76.6 13,77.5 11,78',
+  'Британия':
+    '-5,58.6 -3,58.5 -2,57.5 -3,56 -1.5,54.5 0,53 1.7,52.5 1,51.4 -1,50.7 -4,50.3 -5.7,50 ' +
+    '-4.5,51.6 -3,53.4 -4.7,54 -5,55.5 -5.8,57',
+  'Ирландия':
+    '-10,54.3 -8,55.3 -6,55.2 -6,54 -6,53.3 -6.2,52.2 -8,51.5 -10,51.6 -9.8,53.3',
+  'Евразия':
+    '-9,43 -9,37 -6,36 0,39 4,43 9,44 13,45 13,41 16,41 19,40 24,40 28,41 32,36 36,36 ' +
+    '35,32 34,31 37,25 40,22 43,13 48,13 54,17 57,23 62,25 67,24 72,20 73,16 76,9 80,13 ' +
+    '80,16 85,20 89,22 92,21 95,16 98,9 100,4 104,2 103,8 105,11 109,11 108,17 110,21 ' +
+    '113,22 118,24 121,29 122,32 120,37 122,40 126,40 129,43 133,43 135,47 141,46 142,51 ' +
+    '137,55 141,59 152,59 156,51 163,58 170,60 180,65 180,70 170,70 160,71 150,73 140,73 ' +
+    '130,74 113,74 105,77 95,76 85,74 75,72 70,73 65,72 60,70 52,70 45,68 40,67 36,68 ' +
+    '33,69 30,70 26,70 22,70 18,69 14,67 12,64 7,63 5,61 8,58 10,57 8,54 5,53 3,52 0,50 ' +
+    '-2,48 -4,48 -2,46 -1,44',
+  'Африка':
+    '-6,36 3,37 10,37 11,34 19,31 25,32 32,31 34,28 37,22 39,15 43,12 48,11 51,12 48,5 ' +
+    '42,-1 40,-10 35,-18 33,-26 28,-33 20,-35 18,-33 15,-26 12,-17 13,-8 9,-1 9,4 3,6 ' +
+    '-4,5 -8,4 -13,9 -17,15 -17,21 -14,26 -10,30',
+  'Мадагаскар':
+    '43,-12 49,-13 50,-16 48,-22 45,-25 44,-21 43,-16',
+  'Южная Америка':
+    '-77,8 -72,12 -64,11 -60,8 -52,5 -50,0 -44,-2 -38,-5 -35,-8 -39,-14 -40,-21 -48,-25 ' +
+    '-53,-34 -57,-38 -62,-40 -65,-45 -68,-50 -70,-54 -75,-52 -74,-45 -73,-38 -71,-30 ' +
+    '-70,-20 -76,-14 -81,-6 -80,-2 -78,2',
+  'Куба':
+    '-84,22 -78,22 -74,20 -79,20',
+  'Австралия':
+    '113,-22 114,-26 115,-32 118,-35 124,-33 129,-32 134,-33 138,-35 141,-38 147,-38 ' +
+    '150,-37 153,-32 153,-28 148,-20 143,-14 142,-11 137,-12 136,-15 131,-12 129,-15 ' +
+    '125,-14 122,-17 114,-22',
+  'Япония':
+    '130,31 132,34 136,35 140,36 142,40 141,45 139,42 136,37 133,34',
+  'Новая Зеландия':
+    '172,-34 176,-38 178,-38 177,-41 174,-41 173,-43 170,-46 167,-46 171,-42',
+  'Антарктида':
+    '-180,-78 -160,-78 -150,-75 -140,-72 -125,-73 -100,-73 -85,-73 -75,-72 -70,-70 ' +
+    '-65,-67 -60,-63 -57,-64 -60,-70 -55,-72 -45,-76 -35,-77 -28,-76 -20,-72 -10,-70 ' +
+    '0,-69 10,-70 20,-70 30,-68 40,-67 50,-66 60,-67 70,-68 80,-66 90,-66 100,-65 ' +
+    '110,-66 120,-66 130,-66 140,-66 150,-70 160,-77 170,-78 180,-78 180,-84 -180,-84'
 };
 
-const state = {
-  title: '', sub: '', foot: '',
-  orient: 'h', size: [2560, 1440], theme: 'dark', scale: 'equal',
-  events: [], sel: -1, step: 0
-};
+const SEAS = [
+  ['СЕВЕРНЫЙ ЛЕДОВИТЫЙ ОКЕАН', 90, 84],
+  ['АТЛАНТИЧЕСКИЙ ОКЕАН', -30, 5],
+  ['ТИХИЙ ОКЕАН', -150, 5],
+  ['ИНДИЙСКИЙ ОКЕАН', 78, -25],
+  ['МОРЕ УЭДДЕЛЛА', -38, -64]
+];
 
-/* ---------- разбор дат ------------------------------------------------- */
+/* ---------- сборка карты ----------------------------------------------- */
 
-const MONTHS = ['январ','феврал','март','апрел','ма','июн','июл','август',
-                'сентябр','октябр','ноябр','декабр'];
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('map');
+const tip = document.getElementById('tip');
 
-// Возвращает число для сортировки и раскладки, либо null.
-// Единица не важна: важно только, что все значения в одной шкале.
-function parseWhen(raw) {
-  const s = (raw || '').trim().toLowerCase();
-  if (!s) return null;
-
-  // 8:45 или 9:04:35 — время суток, в секундах
-  let m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if (m) return { kind: 'time', v: (+m[1]) * 3600 + (+m[2]) * 60 + (+(m[3] || 0)) };
-
-  // 1917-12-06 или 1917-12
-  m = s.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
-  if (m) return { kind: 'date', v: Date.UTC(+m[1], +m[2] - 1, +(m[3] || 1)) };
-
-  // 6 декабря 1917
-  m = s.match(/^(\d{1,2})\s+([а-яё]+)\s+(\d{3,4})/);
-  if (m) {
-    const mi = MONTHS.findIndex(p => m[2].startsWith(p));
-    if (mi >= 0) return { kind: 'date', v: Date.UTC(+m[3], mi, +m[1]) };
-  }
-
-  // просто год: 1845, 2022
-  m = s.match(/^(\d{3,4})$/);
-  if (m) return { kind: 'date', v: Date.UTC(+m[1], 0, 1) };
-
-  return null;
+function node(name, attrs) {
+  const el = document.createElementNS(NS, name);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
 }
 
-// Какая шкала возможна для текущего набора событий
-function scaleInfo() {
-  const parsed = state.events.map(e => parseWhen(e.when));
-  const ok = parsed.filter(Boolean);
-  if (!state.events.length) return { can: false, why: 'Добавьте события.' };
-  if (ok.length < state.events.length) {
-    return { can: false, why: 'Не все даты распознаны — шкала по времени недоступна. Понимаю: 1845, 1917-12-06, «6 декабря 1917», 9:04:35.' };
-  }
-  const kinds = new Set(ok.map(p => p.kind));
-  if (kinds.size > 1) return { can: false, why: 'В списке смешаны даты и время суток. Шкала по времени недоступна.' };
+svg.setAttribute('viewBox', `0 0 ${MW} ${MH}`);
 
-  let values = ok.map(p => p.v);
-
-  // Время суток без даты: 23:40 → 00:05 это не «назад на сутки», а полночь.
-  // Раскручиваем в порядке списка, прибавляя сутки на каждом переходе.
-  if (ok[0].kind === 'time') {
-    let add = 0;
-    const un = [values[0]];
-    for (let i = 1; i < values.length; i++) {
-      if (values[i] + add < un[i - 1]) add += 86400;
-      un.push(values[i] + add);
-    }
-    values = un;
-  }
-
-  return { can: true, why: '', values };
+for (const name in LAND) {
+  const pts = LAND[name].trim().split(/\s+/)
+    .map(p => { const [lo, la] = p.split(','); return X(+lo).toFixed(1) + ',' + Y(+la).toFixed(1); })
+    .join(' ');
+  const el = node('polygon', { class: 'land', points: pts });
+  el.appendChild(node('title', {})).textContent = name;
+  svg.appendChild(el);
 }
 
-/* ---------- раскладка -------------------------------------------------- */
-
-// Возвращает массив позиций 0..1 вдоль линии
-function positions() {
-  const n = state.events.length;
-  if (!n) return [];
-  if (n === 1) return [0.5];
-
-  const info = scaleInfo();
-  if (state.scale === 'equal' || !info.can) {
-    return state.events.map((_, i) => i / (n - 1));
-  }
-
-  let v = info.values.slice();
-
-  if (state.scale === 'timebreak') {
-    // Сжимаем промежутки, которые больше медианного втрое:
-    // на длинной шкале иначе всё слипается в одну точку.
-    const order = v.map((x, i) => [x, i]).sort((a, b) => a[0] - b[0]);
-    const gaps = [];
-    for (let i = 1; i < order.length; i++) gaps.push(order[i][0] - order[i - 1][0]);
-    const sorted = gaps.slice().sort((a, b) => a - b);
-    const med = sorted[Math.floor(sorted.length / 2)] || 1;
-    const cap = med * 3;
-    let acc = order[0][0];
-    const remap = new Map([[order[0][1], acc]]);
-    for (let i = 1; i < order.length; i++) {
-      acc += Math.min(order[i][0] - order[i - 1][0], cap);
-      remap.set(order[i][1], acc);
-    }
-    v = v.map((_, i) => remap.get(i));
-  }
-
-  const lo = Math.min(...v), hi = Math.max(...v);
-  if (hi === lo) return state.events.map((_, i) => i / (n - 1));
-  return v.map(x => (x - lo) / (hi - lo));
+for (const [name, lon, lat] of SEAS) {
+  const t = node('text', { class: 'sea', x: X(lon), y: Y(lat), 'text-anchor': 'middle' });
+  t.textContent = name;
+  svg.appendChild(t);
 }
 
-/* ---------- рисование -------------------------------------------------- */
+const sorted = EPISODES.slice().sort((a, b) => a.year - b.year);
+const pins = {};
 
-function wrap(ctx, text, maxW) {
-  const words = String(text || '').split(/\s+/).filter(Boolean);
-  const lines = [];
-  let cur = '';
-  for (const w of words) {
-    const t = cur ? cur + ' ' + w : w;
-    if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; }
-    else cur = t;
-  }
-  if (cur) lines.push(cur);
-  return lines;
+sorted.forEach((e, i) => {
+  const x = X(e.lon), y = Y(e.lat);
+  const g = node('g', { class: 'pin', tabindex: '0', role: 'button' });
+  g.setAttribute('aria-label', `${e.when}. ${e.title}`);
+  g.appendChild(node('circle', { class: 'halo', cx: x, cy: y, r: 30 }));
+  g.appendChild(node('circle', { class: 'ring', cx: x, cy: y, r: 14 }));
+  g.appendChild(node('circle', { class: 'dot',  cx: x, cy: y, r: 9 }));
+  const n = node('text', { class: 'num', x: x, y: y + 3.6 });
+  n.textContent = String(i + 1);
+  g.appendChild(n);
+
+  g.addEventListener('click', () => select(e.id));
+  g.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(e.id); }
+  });
+  g.addEventListener('mouseenter', () => showTip(e, x, y));
+  g.addEventListener('mouseleave', hideTip);
+
+  svg.appendChild(g);
+  pins[e.id] = g;
+});
+
+/* ---------- подсказка при наведении ------------------------------------ */
+
+function showTip(e, x, y) {
+  const box = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  const k = box.width / vb.width;
+  tip.innerHTML = `<b>${e.when}</b> · ${e.title}`;
+  tip.style.left = ((x - vb.x) * k) + 'px';
+  tip.style.top  = ((y - vb.y) * k) + 'px';
+  tip.classList.add('on');
+}
+function hideTip() { tip.classList.remove('on'); }
+
+/* ---------- плавный переезд по карте ------------------------------------ */
+
+const WORLD = [0, 0, MW, MH];
+// Атлантика с полюсами: все шесть точек попадают в это окно.
+// На узком экране мир во всю ширину получился бы полоской в 150 пикселей
+// высотой, поэтому там домашний вид — вот этот, вертикальный.
+const ATLANTIC = [X(-128), Y(86), X(36) - X(-128), Y(-76) - Y(86)];
+
+const home = () => (window.innerWidth < 780 ? ATLANTIC : WORLD);
+
+// Пропорции картинки задаём по домашнему виду и больше не трогаем:
+// иначе при перелёте к точке страница дёргалась бы по высоте.
+function fitAspect() {
+  const b = home();
+  svg.style.aspectRatio = b[2] + ' / ' + b[3];
 }
 
-function groupColor(th, group) {
-  if (!group) return th.accent;
-  const groups = [...new Set(state.events.map(e => e.group).filter(Boolean))];
-  const i = groups.indexOf(group);
-  return th.palette[i % th.palette.length];
+let anim = null;
+function flyTo(box, ms) {
+  const vb = svg.viewBox.baseVal;
+  const from = [vb.x, vb.y, vb.width, vb.height];
+  if (anim) cancelAnimationFrame(anim);
+  const t0 = performance.now();
+  const dur = ms == null ? 550 : ms;
+  (function step(t) {
+    const p = Math.min(1, (t - t0) / dur);
+    const e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;   // плавный вход и выход
+    const cur = from.map((v, i) => v + (box[i] - v) * e);
+    svg.setAttribute('viewBox', cur.join(' '));
+    if (p < 1) anim = requestAnimationFrame(step);
+  })(t0);
 }
 
-function draw(ctx, W, H, step) {
-  const th = THEMES[state.theme];
-  const k = Math.min(W, H) / 900;              // единый масштаб под любой размер
-  // tk — масштаб текста подписей. Если в вертикальном кадре событий столько,
-  // что колонка не влезает по высоте, текст ужимается, а не наезжает сам на себя.
-  let tk = k;
-  const F = (px) => `${Math.round(px * tk)}px ${th.font}`;
-  const T = (px) => `${Math.round(px * k)}px ${th.font}`;   // заголовки, всегда в полный размер
-
-  const g = ctx.createRadialGradient(W / 2, H * 0.44, 0, W / 2, H * 0.44, Math.max(W, H) * 0.8);
-  g.addColorStop(0, th.bg1); g.addColorStop(1, th.bg2);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-
-  // заголовки
-  let topPad = 60 * k;
-  if (state.title) {
-    ctx.fillStyle = th.text; ctx.font = T(44); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText(state.title, W / 2, topPad);
-    topPad += 58 * k;
-  }
-  if (state.sub) {
-    ctx.fillStyle = th.dim; ctx.font = T(24);
-    ctx.fillText(state.sub, W / 2, topPad);
-    topPad += 40 * k;
-  }
-  if (state.foot) {
-    ctx.fillStyle = th.dim; ctx.font = T(20); ctx.textAlign = 'center';
-    ctx.fillText(state.foot, W / 2, H - 46 * k);
-  }
-
-  const pos = positions();
-  const n = state.events.length;
-  if (!n) {
-    ctx.fillStyle = th.dim; ctx.font = T(26); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('Добавьте события слева', W / 2, H / 2);
-    return;
-  }
-
-  const horiz = state.orient === 'h';
-  const shown = Math.max(0, Math.min(step, n));
-
-  // Горизонтальная лента: линия посередине, подписи по обе стороны.
-  // Вертикальная: линия у левого края, подписи одной колонкой справа —
-  // в кадре 9:16 на две стороны текста просто не хватает ширины.
-  const m = horiz ? 150 * k : 90 * k;
-  const from = horiz ? m : topPad + 60 * k;
-  const to = horiz ? W - m : H - 110 * k;
-  const at = (p) => from + p * (to - from);
-
-  let lh26 = 34 * k, lh20 = 27 * k;
-  const stem0 = (horiz ? 46 : 44) * k;
-  const gapLane = 20 * k;
-
-  // Меряем и раскладываем ВСЕ события, а рисуем только открытые.
-  // Иначе от кадра к кадру подписи бы прыгали, и серия не склеилась бы в ролик.
-  function measure(maxW) {
-    const out = [];
-    for (let i = 0; i < n; i++) {
-      const e = state.events[i];
-      let w = 0;
-      const wide = (s, f) => { ctx.font = f; w = Math.max(w, ctx.measureText(s).width); };
-
-      wide(e.when || '', F(21));
-      ctx.font = F(26);
-      const tl = wrap(ctx, e.title, maxW);
-      tl.forEach(s => wide(s, F(26)));
-      ctx.font = F(20);
-      const nl = e.note ? wrap(ctx, e.note, maxW) : [];
-      nl.forEach(s => wide(s, F(20)));
-      const gl = e.group ? '— ' + e.group : '';
-      if (gl) wide(gl, F(18));
-
-      // Крайние подписи прижимаем внутрь кадра: выноска остаётся у точки,
-      // а текст сдвигается, чтобы не срезалось по краю.
-      const p = at(pos[i]);
-      const cx = horiz ? Math.min(Math.max(p, 40 * k + w / 2), W - 40 * k - w / 2) : p;
-
-      out.push({
-        e, tl, nl, gl, i, w, p, cx,
-        h: 30 * tk + tl.length * lh26 + (nl.length ? 8 * tk + nl.length * lh20 : 0) + (gl ? 26 * tk : 0),
-        col: groupColor(th, e.group)
-      });
-    }
-    return out;
-  }
-
-  // Горизонталь: раскладка по дорожкам. На шкале «по времени» события
-  // сбиваются в кучу, и простое чередование «сверху-снизу» кладёт подписи
-  // одну на другую. Ищем первую свободную дорожку: своя сторона, чужая
-  // сторона, второй ряд — и так далее.
-  function assignLanes(items) {
-    const busy = new Map();          // «сторона:ряд» → правый край занятого места
-    let top = 0;
-    for (const it of items) {
-      const a = it.cx - it.w / 2 - 14 * k, b = it.cx + it.w / 2 + 14 * k;
-      const pref = it.i % 2 === 0 ? -1 : 1;
-      let done = false;
-      for (let lvl = 0; lvl < 4 && !done; lvl++) {
-        for (const side of [pref, -pref]) {
-          const key = side + ':' + lvl;
-          const last = busy.get(key);
-          if (last === undefined || a > last) {
-            it.side = side; it.level = lvl;
-            busy.set(key, b);
-            top = Math.max(top, lvl);
-            done = true; break;
-          }
-        }
-      }
-      if (!done) { it.side = pref; it.level = 3; top = 3; }
-    }
-    return top;
-  }
-
-  // Вертикаль: подписи идут одной колонкой и просто расталкиваются вниз,
-  // чтобы не наезжать друг на друга. Выноска остаётся у своей точки,
-  // поэтому связь «точка — подпись» не теряется даже после сдвига.
-  function stack(items, top, bot) {
-    if (!items.length) return;
-    let prev = -1e9;
-    for (const it of items) {
-      it.side = 1; it.level = 0;
-      it.y = Math.max(it.p - it.h / 2, prev + gapLane, top);
-      prev = it.y + it.h;
-    }
-    const overflow = prev - bot;
-    if (overflow <= 0) return;
-
-    // Не поместились: жмём всю колонку вверх, насколько позволяет заголовок.
-    const shift = Math.min(overflow, Math.max(0, items[0].y - top));
-    for (const it of items) it.y -= shift;
-    if (overflow - shift <= 0) return;
-
-    // И этого мало — раскладываем ровно, без привязки к масштабу времени.
-    const totalH = items.reduce((s, it) => s + it.h, 0);
-    const gap = Math.max(4 * k, (bot - top - totalH) / Math.max(1, items.length - 1));
-    let y = top;
-    for (const it of items) { it.y = y; y += it.h + gap; }
-  }
-
-  let items, axis, rowStep = 0;
-
-  if (horiz) {
-    const bandTop = topPad + 24 * k, bandBot = H - 76 * k;
-    // Сколько места подписи занимают по каждую сторону от линии.
-    const rows = (s) => {
-      const lv = items.filter(it => it.side === s).map(it => it.level);
-      return lv.length ? Math.max(...lv) + 1 : 0;
-    };
-    let up = 0, down = 0;
-
-    // Подбираем размер текста: пока ряды подписей не влезают между
-    // заголовком и нижней подписью — ужимаем.
-    for (let pass = 0; pass < 10; pass++) {
-      lh26 = 34 * tk; lh20 = 27 * tk;
-      items = measure(Math.min(320 * k, (to - from) / Math.max(2, n) * 2.2));
-      assignLanes(items);
-      rowStep = items.length ? Math.max(...items.map(it => it.h)) + gapLane : 0;
-      up = rows(-1) ? stem0 + rows(-1) * rowStep : 40 * k;
-      down = rows(1) ? stem0 + rows(1) * rowStep : 40 * k;
-      if (up + down <= bandBot - bandTop || tk <= k * 0.5) break;
-      tk *= 0.9;
-    }
-
-    // Линия встаёт так, чтобы верхний ряд подписей не наехал на заголовок,
-    // а нижний не ушёл под подпись внизу кадра.
-    const lo = bandTop + up, hi = bandBot - down;
-    axis = (lo + hi) / 2;
-  } else {
-    axis = m + 26 * k;
-    const colTop = topPad + 24 * k;
-    const colBot = H - 96 * k;
-    const colW = W - axis - stem0 - 22 * k - m;
-
-    // Подбираем размер текста: пока колонка не влезает по высоте — ужимаем.
-    for (let pass = 0; pass < 10; pass++) {
-      lh26 = 34 * tk; lh20 = 27 * tk;
-      items = measure(colW);
-      const need = items.reduce((s, it) => s + it.h, 0) + Math.max(0, items.length - 1) * gapLane;
-      if (need <= colBot - colTop || tk <= k * 0.55) break;
-      tk *= 0.92;
-    }
-    stack(items, colTop, colBot);
-  }
-
-  // ось: сплошная до последнего открытого события, дальше бледная,
-  // чтобы кадр не «прыгал» по композиции от шага к шагу
-  const endP = shown === 0 ? 0 : pos[shown - 1];
-  ctx.strokeStyle = th.line; ctx.lineWidth = Math.max(2, 3 * k);
-  ctx.beginPath();
-  if (horiz) { ctx.moveTo(from, axis); ctx.lineTo(at(endP), axis); }
-  else { ctx.moveTo(axis, from); ctx.lineTo(axis, at(endP)); }
-  ctx.stroke();
-
-  ctx.globalAlpha = 0.28;
-  ctx.beginPath();
-  if (horiz) { ctx.moveTo(at(endP), axis); ctx.lineTo(to, axis); }
-  else { ctx.moveTo(axis, at(endP)); ctx.lineTo(axis, to); }
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-
-  for (const it of items) {
-    if (it.i >= shown) continue;
-    const isLast = it.i === shown - 1;
-    const off = stem0 + it.level * rowStep;
-
-    // точка
-    ctx.fillStyle = it.col;
-    ctx.beginPath();
-    ctx.arc(horiz ? it.p : axis, horiz ? axis : it.p, (isLast ? 13 : 9) * k, 0, 7);
-    ctx.fill();
-    if (isLast) {
-      ctx.strokeStyle = it.col; ctx.globalAlpha = .45; ctx.lineWidth = 2.5 * k;
-      ctx.beginPath(); ctx.arc(horiz ? it.p : axis, horiz ? axis : it.p, 26 * k, 0, 7); ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
-
-    // выноска
-    ctx.strokeStyle = th.line; ctx.lineWidth = 2 * k;
-    ctx.beginPath();
-    if (horiz) {
-      ctx.moveTo(it.p, axis + it.side * 16 * k);
-      ctx.lineTo(it.p, axis + it.side * off);
-    } else {
-      // Подпись могла уехать вниз от своей точки — ведём линию наклонно,
-      // чтобы было видно, к какой именно точке она относится.
-      ctx.moveTo(axis + 16 * k, it.p);
-      ctx.lineTo(axis + stem0, it.y + 15 * k);
-    }
-    ctx.stroke();
-
-    // текст
-    let x, cy;
-    if (horiz) {
-      x = it.cx;
-      cy = it.side < 0 ? axis - off - it.h : axis + off;
-      ctx.textAlign = 'center';
-    } else {
-      x = axis + stem0 + 22 * k;
-      cy = it.y;
-      ctx.textAlign = 'left';
-    }
-    ctx.textBaseline = 'top';
-
-    ctx.fillStyle = it.col; ctx.font = F(21);
-    ctx.fillText(it.e.when || '', x, cy);
-    cy += 30 * tk;
-
-    ctx.fillStyle = th.text; ctx.font = F(26);
-    for (const ln of it.tl) { ctx.fillText(ln, x, cy); cy += lh26; }
-
-    if (it.nl.length) {
-      cy += 8 * tk;
-      ctx.fillStyle = th.dim; ctx.font = F(20);
-      for (const ln of it.nl) { ctx.fillText(ln, x, cy); cy += lh20; }
-    }
-
-    if (it.gl) {
-      cy += 6 * tk;
-      ctx.fillStyle = it.col; ctx.font = F(18);
-      ctx.fillText(it.gl, x, cy);
-    }
-  }
+function frameFor(e) {
+  // Окно вокруг точки в тех же пропорциях, что и домашний вид,
+  // и не мельче трети его ширины: схематичная суша при сильном
+  // увеличении распадается на углы и читаться перестаёт.
+  const b = home();
+  const w = b[2] / 2.6, h = w * (b[3] / b[2]);
+  let x = X(e.lon) - w / 2, y = Y(e.lat) - h / 2;
+  x = Math.max(b[0], Math.min(x, b[0] + b[2] - w));
+  y = Math.max(b[1], Math.min(y, b[1] + b[3] - h));
+  return [x, y, w, h];
 }
 
-/* ---------- превью ----------------------------------------------------- */
+const bHome = document.getElementById('bHome');
+bHome.onclick = () => { bHome.hidden = true; flyTo(home()); };
 
-const cv = document.getElementById('cv');
-const ctx = cv.getContext('2d');
+/* ---------- карточка и лента -------------------------------------------- */
 
-function render() {
-  const [W, H] = state.size;
-  const box = document.getElementById('stage').getBoundingClientRect();
-  const fit = Math.min((box.width - 48) / W, (box.height - 48) / H, 1);
-  cv.width = W; cv.height = H;
-  cv.style.width = Math.round(W * fit) + 'px';
-  cv.style.height = Math.round(H * fit) + 'px';
-  draw(ctx, W, H, state.step);
-}
-
-/* ---------- интерфейс -------------------------------------------------- */
-
-function toast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('on');
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.remove('on'), 2600);
-}
+const card = document.getElementById('card');
+const strip = document.getElementById('strip');
+let current = null;
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
-function renderList() {
-  const box = document.getElementById('events');
-  if (!state.events.length) {
-    box.innerHTML = '<div class="empty">Пока пусто. Нажмите «Добавить событие».</div>';
-  } else {
-    box.innerHTML = state.events.map((e, i) => `
-      <div class="ev ${i === state.sel ? 'sel' : ''}" data-i="${i}">
-        <div class="ev-top">
-          <span class="ev-dot" style="background:${groupColor(THEMES[state.theme], e.group)}"></span>
-          <span class="ev-when">${esc(e.when) || '—'}</span>
-          <span class="ev-title">${esc(e.title) || 'Без названия'}</span>
-        </div>
-        <div class="ev-body">
-          <div class="row tight">
-            <div class="field"><label>Дата или время</label>
-              <input data-f="when" value="${esc(e.when)}" placeholder="1917-12-06"></div>
-            <div class="field"><label>Группа или человек</label>
-              <input data-f="group" value="${esc(e.group)}" placeholder="необязательно"></div>
-          </div>
-          <div class="field"><label>Событие</label>
-            <input data-f="title" value="${esc(e.title)}"></div>
-          <div class="field"><label>Пояснение</label>
-            <textarea data-f="note">${esc(e.note)}</textarea></div>
-          <div class="ev-actions">
-            <button class="small ghost" data-a="up">Выше</button>
-            <button class="small ghost" data-a="down">Ниже</button>
-            <button class="small ghost" data-a="dup">Копия</button>
-            <button class="small ghost" data-a="del" style="color:var(--danger)">Удалить</button>
-          </div>
-        </div>
-      </div>`).join('');
-  }
+strip.innerHTML = sorted.map((e, i) => `
+  <button class="item" data-id="${e.id}">
+    <span class="y">${i + 1}. ${esc(String(e.year))}</span>
+    <span class="t">${esc(e.title)}</span>
+    <span class="w">${esc(e.where)}</span>
+  </button>`).join('');
 
-  const info = scaleInfo();
-  const hint = document.getElementById('scaleHint');
-  if (!state.events.length) hint.textContent = '';
-  else if (info.can) hint.innerHTML = 'Даты распознаны — доступны все шкалы.';
-  else hint.innerHTML = '<span class="warn">' + esc(info.why) + '</span>';
-
-  const st = document.getElementById('step');
-  st.max = state.events.length;
-  if (state.step > state.events.length) state.step = state.events.length;
-  st.value = state.step;
-  document.getElementById('stepLabel').textContent =
-    `Кадр ${state.step} из ${state.events.length}`;
-}
-
-function refresh() { renderList(); render(); autosave(); }
-
-document.getElementById('events').addEventListener('click', ev => {
-  const card = ev.target.closest('.ev'); if (!card) return;
-  const i = +card.dataset.i;
-  const act = ev.target.dataset.a;
-  if (act) {
-    if (act === 'del') { state.events.splice(i, 1); state.sel = -1; }
-    if (act === 'dup') { state.events.splice(i + 1, 0, Object.assign({}, state.events[i])); state.sel = i + 1; }
-    if (act === 'up' && i > 0) { [state.events[i - 1], state.events[i]] = [state.events[i], state.events[i - 1]]; state.sel = i - 1; }
-    if (act === 'down' && i < state.events.length - 1) { [state.events[i + 1], state.events[i]] = [state.events[i], state.events[i + 1]]; state.sel = i + 1; }
-    state.step = state.events.length;
-    refresh(); return;
-  }
-  state.sel = state.sel === i ? -1 : i;
-  refresh();
+strip.addEventListener('click', ev => {
+  const b = ev.target.closest('.item');
+  if (b) select(b.dataset.id);
 });
 
-document.getElementById('events').addEventListener('input', ev => {
-  const card = ev.target.closest('.ev'); if (!card) return;
-  const f = ev.target.dataset.f; if (!f) return;
-  state.events[+card.dataset.i][f] = ev.target.value;
-  render(); autosave();
-  if (f === 'when' || f === 'group') {
-    const info = scaleInfo(); const hint = document.getElementById('scaleHint');
-    hint.innerHTML = info.can ? 'Даты распознаны — доступны все шкалы.'
-                              : '<span class="warn">' + esc(info.why) + '</span>';
+function select(id, fly) {
+  const e = sorted.find(x => x.id === id);
+  if (!e) return;
+  current = id;
+
+  for (const k in pins) pins[k].classList.toggle('on', k === id);
+  strip.querySelectorAll('.item').forEach(b => b.classList.toggle('on', b.dataset.id === id));
+
+  const has = PLATFORMS.filter(([k]) => e.links[k]);
+  const links = has.length
+    ? has.map(([k, label]) => `<a href="${esc(e.links[k])}" target="_blank" rel="noopener">${label}</a>`).join('')
+    : '<span class="soon">Ссылка появится, когда выпуск выйдет</span>';
+
+  card.innerHTML = `
+    <div class="meta">${esc(e.when).toUpperCase()}</div>
+    <h2>${esc(e.hook)}</h2>
+    <p>${esc(e.text)}</p>
+    <div class="where">${esc(e.where)}</div>
+    <div class="links">${links}</div>`;
+
+  if (fly !== false) {
+    bHome.hidden = false;
+    flyTo(frameFor(e));
+  }
+  hideTip();
+
+  if (history.replaceState) history.replaceState(null, '', '#' + id);
+}
+
+/* ---------- подвал и старт ---------------------------------------------- */
+
+for (const [id, url] of [['lnTg', CHANNEL.telegram], ['lnBoosty', CHANNEL.boosty]]) {
+  const a = document.getElementById(id);
+  if (url) { a.href = url; a.textContent = url.replace(/^https?:\/\//, ''); }
+  else { a.removeAttribute('href'); a.style.color = 'var(--mute)'; }
+}
+
+let wide = window.innerWidth >= 780;
+window.addEventListener('resize', () => {
+  hideTip();
+  const w = window.innerWidth >= 780;
+  if (w !== wide) {                 // сменился экран — домашний вид другой
+    wide = w;
+    fitAspect();
+    if (bHome.hidden) svg.setAttribute('viewBox', home().join(' '));
   }
 });
 
-document.getElementById('addEv').onclick = () => {
-  state.events.push({ when: '', title: '', note: '', group: '' });
-  state.sel = state.events.length - 1;
-  state.step = state.events.length;
-  refresh();
-};
+fitAspect();
 
-document.getElementById('sortEv').onclick = () => {
-  const info = scaleInfo();
-  if (!info.can) { toast('Сортировать нечего: даты не распознаны'); return; }
-  const pairs = state.events.map((e, i) => [info.values[i], e]);
-  pairs.sort((a, b) => a[0] - b[0]);
-  state.events = pairs.map(p => p[1]);
-  state.sel = -1;
-  refresh();
-  toast('События упорядочены по дате');
-};
-
-for (const [id, key] of [['pTitle', 'title'], ['pSub', 'sub'], ['pFoot', 'foot']]) {
-  document.getElementById(id).addEventListener('input', e => {
-    state[key] = e.target.value; render(); autosave();
-  });
+// Первый экран — вся карта целиком: сразу видно, что шесть историй
+// складываются в одно кольцо вокруг Атлантики, а не лежат случайно.
+const start = location.hash.replace('#', '');
+svg.setAttribute('viewBox', home().join(' '));
+if (sorted.some(e => e.id === start)) {
+  select(start);
+} else {
+  select(sorted[0].id, false);
 }
-
-document.getElementById('orient').onchange = e => { state.orient = e.target.value; render(); autosave(); };
-document.getElementById('scale').onchange = e => { state.scale = e.target.value; render(); autosave(); };
-document.getElementById('size').onchange = e => {
-  state.size = e.target.value.split('x').map(Number); render(); autosave();
-};
-
-const themeSel = document.getElementById('theme');
-themeSel.innerHTML = Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
-themeSel.onchange = e => { state.theme = e.target.value; refresh(); };
-
-const stepEl = document.getElementById('step');
-stepEl.oninput = e => {
-  state.step = +e.target.value;
-  document.getElementById('stepLabel').textContent = `Кадр ${state.step} из ${state.events.length}`;
-  render();
-};
-document.getElementById('playAll').onclick = () => {
-  state.step = state.events.length; stepEl.value = state.step; refresh();
-};
-
-/* ---------- сохранение и экспорт --------------------------------------- */
-
-// Имена файлов пишем латиницей: серию кадров потом скармливают ffmpeg
-// по шаблону вида timeline-%02d.png, и кириллица там только мешает.
-const TRANSLIT = {
-  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z',
-  и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r',
-  с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch',
-  ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya'
-};
-
-function slug() {
-  const s = (state.title || 'timeline').toLowerCase()
-    .replace(/[а-яё]/g, c => TRANSLIT[c] != null ? TRANSLIT[c] : c)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 50);
-  return s || 'timeline';
-}
-
-function download(blob, name) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-}
-
-document.getElementById('save').onclick = () => {
-  const data = JSON.stringify({
-    v: 1, title: state.title, sub: state.sub, foot: state.foot,
-    orient: state.orient, size: state.size, theme: state.theme,
-    scale: state.scale, events: state.events
-  }, null, 2);
-  download(new Blob([data], { type: 'application/json' }), slug() + '.json');
-  toast('Проект сохранён');
-};
-
-document.getElementById('load').onclick = () => document.getElementById('file').click();
-document.getElementById('file').onchange = e => {
-  const f = e.target.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = () => {
-    try { applyProject(JSON.parse(r.result)); toast('Проект открыт'); }
-    catch (err) { toast('Не удалось прочитать файл: ' + err.message); }
-  };
-  r.readAsText(f);
-  e.target.value = '';
-};
-
-function applyProject(p) {
-  state.title = p.title || ''; state.sub = p.sub || ''; state.foot = p.foot || '';
-  state.orient = p.orient || 'h';
-  state.size = Array.isArray(p.size) ? p.size : [2560, 1440];
-  state.theme = THEMES[p.theme] ? p.theme : 'dark';
-  state.scale = p.scale || 'equal';
-  state.events = Array.isArray(p.events) ? p.events.map(e => ({
-    when: e.when || '', title: e.title || '', note: e.note || '', group: e.group || ''
-  })) : [];
-  state.sel = -1; state.step = state.events.length;
-  syncControls(); refresh();
-}
-
-function syncControls() {
-  document.getElementById('pTitle').value = state.title;
-  document.getElementById('pSub').value = state.sub;
-  document.getElementById('pFoot').value = state.foot;
-  document.getElementById('orient').value = state.orient;
-  document.getElementById('size').value = state.size.join('x');
-  document.getElementById('theme').value = state.theme;
-  document.getElementById('scale').value = state.scale;
-}
-
-function frameBlob(step) {
-  const [W, H] = state.size;
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  draw(c.getContext('2d'), W, H, step);
-  return new Promise(res => c.toBlob(res, 'image/png'));
-}
-
-document.getElementById('exportOne').onclick = async () => {
-  const b = await frameBlob(state.step);
-  download(b, `${slug()}-${String(state.step).padStart(2, '0')}.png`);
-  toast('Кадр сохранён');
-};
-
-document.getElementById('exportAll').onclick = async () => {
-  const n = state.events.length;
-  if (!n) { toast('Сначала добавьте события'); return; }
-  const btn = document.getElementById('exportAll');
-  btn.disabled = true;
-  // Первый кадр — пустая линия, дальше по одному событию.
-  // Кадры выгружаются по одному: браузер может спросить разрешение
-  // на несколько файлов подряд — это нормально, надо согласиться.
-  for (let s = 0; s <= n; s++) {
-    const b = await frameBlob(s);
-    download(b, `${slug()}-${String(s).padStart(2, '0')}.png`);
-    await new Promise(r => setTimeout(r, 320));
-  }
-  btn.disabled = false;
-  toast(`Готово: ${n + 1} кадров. Если скачался только первый — разрешите сайту несколько файлов.`);
-};
-
-/* ---------- автосохранение --------------------------------------------- */
-
-const KEY = 'chronolenta.autosave';
-function autosave() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify({
-      title: state.title, sub: state.sub, foot: state.foot,
-      orient: state.orient, size: state.size, theme: state.theme,
-      scale: state.scale, events: state.events
-    }));
-  } catch (e) { /* приватный режим — не беда */ }
-}
-
-function boot() {
-  let restored = false;
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) { applyProject(JSON.parse(raw)); restored = true; }
-  } catch (e) { /* ignore */ }
-
-  if (!restored) {
-    state.title = 'Ночь на 15 апреля 1912 года';
-    state.sub = 'от удара об айсберг до последней шлюпки';
-    state.foot = 'Хронолента';
-    state.events = [
-      { when: '23:40', title: 'Удар об айсберг', note: 'Пробоина по правому борту, пять отсеков', group: '«Титаник»' },
-      { when: '00:05', title: 'Приказ готовить шлюпки', note: 'Мест хватает примерно половине людей на борту', group: '«Титаник»' },
-      { when: '00:45', title: 'Первая шлюпка и первая ракета', note: 'Ракета белая — цвет не означает бедствия', group: '«Титаник»' },
-      { when: '01:40', title: 'Восьмая, последняя ракета', note: '', group: '«Титаник»' },
-      { when: '02:20', title: 'Судно уходит под воду', note: '', group: '«Титаник»' },
-      { when: '04:00', title: '«Карпатия» подбирает первых', note: '58 миль за три с половиной часа', group: '«Карпатия»' }
-    ];
-    state.scale = 'time';
-    state.step = state.events.length;
-    syncControls();
-  }
-  refresh();
-}
-
-window.addEventListener('resize', render);
-boot();
 </script>
 </html>
